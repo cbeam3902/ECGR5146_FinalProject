@@ -33,7 +33,8 @@ architecture fsm of cpu is
     signal accu_carry : std_logic_vector( 8 downto 0) := "000000000" ; --Accumulator with carry
     signal op_code : std_logic_vector( 3 downto 0) := "0000" ; -- Current op-code
     signal pc : std_logic_vector( 7 downto 0) := "00000000" ; -- Program counter
-    signal carry_flag: std_logic;
+    signal counter : std_logic_vector( 7 downto 0) := "00000000" ; -- Counter
+    signal carry_flag: std_logic := '0';
     
 begin -- fsm
     -- Accumulator and program counter value outputs
@@ -42,7 +43,9 @@ begin -- fsm
     fsm_proc : process ( clk, reset)
             variable state : state_t := load_opcode;
         begin -- process fsm_proc
-        
+        if accu_carry(8) = '1' then
+            carry_flag <= '1';
+        end if;
         if ( reset = '1') then -- Asynchronous reset
             -- output and variable initialisation
             wr_en <= '0';
@@ -50,6 +53,8 @@ begin -- fsm
             addr <= ( others => '0');
             op_code <= ( others => '0');
             accu <= ( others => '0');
+            accu_carry <= ( others => '0');
+            carry_flag <= '0';
             pc <= ( others => '0');
             state := load_opcode;
         elsif rising_edge( clk) then -- Synchronous FSM
@@ -78,29 +83,41 @@ begin -- fsm
             when STA_1 => -- Store accumulator to memory address
                 wr_en <= '1';
                 dw <= accu;
-                pc <= pc + one;
-                addr <= pc + one;
-                state := load_opcode;
+                if counter = "00000001" then
+                    counter <= "00000000";
+                    pc <= pc + one;
+                    addr <= pc + one;
+                    state := load_opcode;
+                else
+                    counter <= counter + one;
+                end if;
             when ADD_1 => -- Add contents at addr to accumulator
                 wr_en <= '0';
-                accu_carry <= accu + dr;
-                carry_flag <= accu_carry(8);
-                accu <= accu_carry(7 downto 0);
-                pc <= pc + one;
-                addr <= pc + one;
-                state := load_opcode;
+                if counter = "00001000" then
+                    accu_carry <= ('0'&accu) + ('0'&dr);
+                    accu <= accu + dr;
+                    counter <= "00000000";
+                    pc <= pc + one;
+                    addr <= pc + one;
+                    state := load_opcode;
+                else
+                    counter <= counter + one;
+                end if;
             when JNC_1 => -- Jump to addr if carry flag is not set
                 wr_en <= '0';
                 pc <= pc + one;
                 addr <= pc + one;
                 if carry_flag='0' then
-                    pc <= dr - one;
+                    pc <= dr;
                     addr <= dr;
+                else
+                    carry_flag <= '0';
+                    accu_carry(8) <= '0';
                 end if;
                 state := load_opcode;
             when JMP_1 => -- Jump to addr
                 wr_en <= '0';
-                pc <= dr - one;
+                pc <= dr;
                 addr <= dr;
                 state := load_opcode;
             end case; -- state
