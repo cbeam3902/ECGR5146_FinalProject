@@ -363,7 +363,8 @@ entity cpu_top is
         clk50 : in std_logic; -- display clock (50 MHz)
         reset : in std_logic;
         an : out std_logic_vector(3 downto 0); -- Anode for 7-segment display
-        CA, CB, CC, CD, CE, CF, CG : out std_logic -- 7-segment display cathodes
+        CA, CB, CC, CD, CE, CF, CG : out std_logic; -- 7-segment display cathodes
+        dr_out, dw_out, addr_out, pc, accu : out std_logic_vector (7 downto 0) -- Waveform output
     );
 end cpu_top;
 
@@ -411,6 +412,11 @@ architecture rtl of cpu_top is
     
 begin -- rtl
     output <= pc_out & accu_out;
+    dr_out <= dr;
+    dw_out <= dw;
+    addr_out <= addr;
+    pc <= pc_out;
+    accu <= accu_out;
     cpu_inst: cpu
         port map(
             clk => clk,
