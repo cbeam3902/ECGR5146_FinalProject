@@ -32,9 +32,11 @@ architecture fsm of cpu is
     constant MUL : std_logic_vector( 3 downto 0) := "1001";
     constant PRG : std_logic_vector( 3 downto 0) := "1010";
     constant JSR : std_logic_vector( 3 downto 0) := "1011";
+    constant JFA : std_logic_vector( 3 downto 0) := "1100";
+    constant LDV : std_logic_vector( 3 downto 0) := "1101";
     constant one : std_logic_vector( 7 downto 0) := "00000001";
     -- FSM states
-    type state_t is ( load_opcode, LDA_1, STA_1, ADD_1, JNC_1, JMP_1, SUB_1, SHL_1, SHR_1, MUL_1, PRG_1, JSR_1); -- List of states in the CPU FSM
+    type state_t is ( load_opcode, LDA_1, STA_1, ADD_1, JNC_1, JMP_1, SUB_1, SHL_1, SHR_1, MUL_1, PRG_1, JSR_1, JFA_1, LDV_1); -- List of states in the CPU FSM
     -- Signals used for debugging
     signal state_watch : state_t;
     -- CPU registers
@@ -68,6 +70,7 @@ begin -- fsm
             accu_carry <= ( others => '0');
             carry_flag <= '0';
             pc <= ( others => '0');
+            counter <= ( others => '0');
             state := load_opcode;
         elsif rising_edge( clk) then -- Synchronous FSM
             state_watch <= state;
@@ -89,6 +92,8 @@ begin -- fsm
                     when MUL => state := MUL_1;
                     when PRG => state := PRG_1;
                     when JSR => state := JSR_1;
+                    when JFA => state := JFA_1;
+                    when LDV => state := LDV_1;
                     when others => state := load_opcode;
                 end case; -- opcode decoder
             -- Op-code behaviors here:
@@ -103,6 +108,7 @@ begin -- fsm
                 dw <= accu;
                 addr <= dr;
                 if counter = "00000001" then
+                    wr_en <= '0';
                     counter <= "00000000";
                     pc <= pc + one;
                     addr <= pc + one;
@@ -164,10 +170,19 @@ begin -- fsm
                 addr <= pc + one;
                 state := load_opcode;
             when MUL_1 => -- Multiplies contents at addr with accumulator
-            
+                wr_en <= '0';
+                if counter = "00001000" then
+                    accu <= accu(3 downto 0) * dr(3 downto 0);
+                    counter <= "00000000";
+                    pc <= pc + one;
+                    addr <= pc + one;
+                    state := load_opcode;
+                else
+                    counter <= counter + one;
+                end if;
             when PRG_1 => -- Load accumulator with pseudo-random
                 wr_en <= '0';
-                seed1 := 1;
+                seed1 := 0;
                 seed2 := 1;
                 if counter = "00000100" then
                     uniform(seed1, seed2, rnd_num);
@@ -175,21 +190,43 @@ begin -- fsm
                     pc <= pc + one;
                     addr <= pc + one;
                     state := load_opcode;
-                    state := load_opcode;
                 else
                     counter <= counter + one;
                 end if;               
-            when JSR_1 => --
+            when JSR_1 => -- Store next address to operate when doen, jump to subroutine at address value.
                 wr_en <= '1';
-                dw <= pc+one;
                 addr <= "00011111";
-                if counter = "00000001" then
+                if counter = "00000010" then
+                    wr_en <= '0';
                     counter <= "00000000";
-                    pc <= dr;
-                    addr <= dr;
+                    pc <= pc;
+                    addr <= pc;
                     state := load_opcode;
-                else
+                elsif counter = "00000001" then
                     counter <= counter + one;
+                else
+                    pc <= dr;
+                    dw <= pc+one;
+                    counter <= counter + one;
+                end if;
+            when JFA_1 => -- Jumps to address stored in accumulator
+                wr_en <= '0';
+                pc <= accu;
+                addr <= accu;
+                state := load_opcode;
+            when LDV_1 =>
+                wr_en <= '0';
+                if counter = "00000010" then
+                    counter <= "00000000";
+                    pc <= pc + 1;
+                    addr <= pc + 1;
+                    state := load_opcode;
+                elsif counter = "00000001" then
+                    counter <= counter + 1;
+                    accu <= dr;
+                else
+                    addr <= dr;
+                    counter <= counter + 1;
                 end if;
             end case; -- state
         end if; -- rising_edge(clk)
@@ -216,10 +253,10 @@ architecture sim of procram is
     type mem_array is array (0 to 15) of std_logic_vector(7 downto 0);
     signal ram_data: mem_array := (others => x"00");
     signal rom_data: mem_array :=
---    (x"0b",x"07",x"05",x"00",x"02",x"10",x"04",x"02",
---    x"05",x"00",x"09",x"00",x"00",x"00",x"05",x"1F");
-    (x"01",x"07",x"03",x"0a",x"02",x"10",x"04",x"02",
-    x"05",x"00",x"09",x"00",x"00",x"00",x"00",x"00");
+    (x"0b",x"04",x"05",x"00",x"0a",x"00",x"06",x"01",
+    x"07",x"00",x"09",x"02",x"0d",x"1F",x"0c",x"00");
+--    (x"01",x"07",x"03",x"0a",x"02",x"10",x"04",x"02",
+--    x"05",x"00",x"09",x"00",x"00",x"00",x"00",x"00");
 begin
     process(clk, WR_EN, RESET, A)
         variable address : integer := 0;
