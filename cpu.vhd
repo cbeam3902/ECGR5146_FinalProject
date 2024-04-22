@@ -125,6 +125,9 @@ begin -- fsm
                     pc <= pc + one;
                     addr <= pc + one;
                     state := load_opcode;
+                elsif counter = "00000000" then
+                    addr <= dr;
+                    counter <= counter + one;
                 else
                     counter <= counter + one;
                 end if;
@@ -148,12 +151,15 @@ begin -- fsm
             when SUB_1 => -- Subtracts contents at addr to accumulator
                 wr_en <= '0';
                 if counter = "00001000" then
-                    accu_carry <= ('0'&accu) + ('0'&dr);
+                    accu_carry <= ('0'&accu) - ('0'&dr);
                     accu <= accu - dr;
                     counter <= "00000000";
                     pc <= pc + one;
                     addr <= pc + one;
                     state := load_opcode;
+                elsif counter = "00000000" then
+                    addr <= dr;
+                    counter <= counter + one;
                 else
                     counter <= counter + one;
                 end if;
@@ -185,6 +191,7 @@ begin -- fsm
                 seed1 := 0;
                 seed2 := 1;
                 if counter = "00000100" then
+                    counter <= "00000000";
                     uniform(seed1, seed2, rnd_num);
                     accu <= conv_std_logic_vector(integer(floor(rnd_num * 256.0)), 8);
                     pc <= pc + one;
