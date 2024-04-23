@@ -20,6 +20,11 @@ end cpu;
 
 architecture fsm of cpu is
 
+    component multiplier is
+    port (  clk, reset : in std_logic;
+            multiplicand, multiplier : in integer;
+            product: out integer);
+    end component;
     -- op-codes
     constant LDA : std_logic_vector( 3 downto 0) := "0001";
     constant STA : std_logic_vector( 3 downto 0) := "0010";
@@ -47,7 +52,14 @@ architecture fsm of cpu is
     signal counter : std_logic_vector( 7 downto 0) := "00000000" ; -- Counter
     signal carry_flag: std_logic := '0';
     
+    signal reset_mult, clk_mult: std_logic := '0';
+    signal multiplicand, multiplier_b, product: integer;
+        
 begin -- fsm
+    mult4:entity work.multiplier(mixed)
+    port map(clk=>clk, reset=>reset_mult, multiplicand=>multiplicand, multiplier=>multiplier_b,product=>product);
+--    mult4: multiplier port map(clk=>clk, reset=>reset_mult, multiplicand=>multiplicand, multiplier=>multiplier_b,product=>product);
+
     -- Accumulator and program counter value outputs
     accu_out <= accu;
     pc_out <= pc;
@@ -177,13 +189,26 @@ begin -- fsm
                 state := load_opcode;
             when MUL_1 => -- Multiplies contents at addr with accumulator
                 wr_en <= '0';
+                
                 if counter = "00001000" then
-                    accu <= accu(3 downto 0) * dr(3 downto 0);
+                    --accu <= accu(3 downto 0) * dr(3 downto 0);
+                    accu <= conv_std_logic_vector(product, 8);
+                    reset_mult <= '0';
                     counter <= "00000000";
                     pc <= pc + one;
                     addr <= pc + one;
                     state := load_opcode;
+                elsif counter = "00000000" then
+                    reset_mult <= '1';
+                    multiplicand <= conv_integer(accu);        
+                    multiplier_b <= conv_integer(dr);                     
+                    counter <= counter + one;   
+                elsif counter = "00000001" then
+                    reset_mult <= '0';
+                    clk_mult <= not clk_mult;
+                    counter <= counter + one; 
                 else
+                    clk_mult <= not clk_mult;
                     counter <= counter + one;
                 end if;
             when PRG_1 => -- Load accumulator with pseudo-random
@@ -260,10 +285,12 @@ architecture sim of procram is
     type mem_array is array (0 to 15) of std_logic_vector(7 downto 0);
     signal ram_data: mem_array := (others => x"00");
     signal rom_data: mem_array :=
-    (x"0b",x"04",x"05",x"00",x"0a",x"00",x"06",x"01",
-    x"07",x"00",x"09",x"02",x"0d",x"1F",x"0c",x"00");
+--    (x"0b",x"04",x"05",x"00",x"0a",x"00",x"06",x"01",
+--    x"07",x"00",x"09",x"02",x"0d",x"1F",x"0c",x"00");
 --    (x"01",x"07",x"03",x"0a",x"02",x"10",x"04",x"02",
 --    x"05",x"00",x"09",x"00",x"00",x"00",x"00",x"00");
+(x"01",x"0A",x"09",x"0A",x"02",x"10",x"09",x"09",
+ x"01",x"25",x"09",x"30",x"02",x"10",x"09",x"09"); 
 begin
     process(clk, WR_EN, RESET, A)
         variable address : integer := 0;
