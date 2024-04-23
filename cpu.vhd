@@ -26,19 +26,19 @@ architecture fsm of cpu is
             product: out integer);
     end component;
     -- op-codes
-    constant LDA : std_logic_vector( 3 downto 0) := "0001";
-    constant STA : std_logic_vector( 3 downto 0) := "0010";
-    constant ADD : std_logic_vector( 3 downto 0) := "0011";
-    constant JNC : std_logic_vector( 3 downto 0) := "0100";
-    constant JMP : std_logic_vector( 3 downto 0) := "0101";
-    constant SUB : std_logic_vector( 3 downto 0) := "0110";
-    constant SHL_0 : std_logic_vector( 3 downto 0) := "0111";
-    constant SHR_0 : std_logic_vector( 3 downto 0) := "1000";
-    constant MUL : std_logic_vector( 3 downto 0) := "1001";
-    constant PRG : std_logic_vector( 3 downto 0) := "1010";
-    constant JSR : std_logic_vector( 3 downto 0) := "1011";
-    constant JFA : std_logic_vector( 3 downto 0) := "1100";
-    constant LDV : std_logic_vector( 3 downto 0) := "1101";
+    constant LDA : std_logic_vector( 3 downto 0) := "0001";         -- 1
+    constant STA : std_logic_vector( 3 downto 0) := "0010";         -- 2
+    constant ADD : std_logic_vector( 3 downto 0) := "0011";         -- 3
+    constant JNC : std_logic_vector( 3 downto 0) := "0100";         -- 4
+    constant JMP : std_logic_vector( 3 downto 0) := "0101";         -- 5
+    constant SUB : std_logic_vector( 3 downto 0) := "0110";         -- 6
+    constant SHL_0 : std_logic_vector( 3 downto 0) := "0111";       -- 7
+    constant SHR_0 : std_logic_vector( 3 downto 0) := "1000";       -- 8
+    constant MUL : std_logic_vector( 3 downto 0) := "1001";         -- 9
+    constant PRG : std_logic_vector( 3 downto 0) := "1010";         -- A
+    constant JSR : std_logic_vector( 3 downto 0) := "1011";         -- B
+    constant JFA : std_logic_vector( 3 downto 0) := "1100";         -- C
+    constant LDV : std_logic_vector( 3 downto 0) := "1101";         -- D
     constant one : std_logic_vector( 7 downto 0) := "00000001";
     -- FSM states
     type state_t is ( load_opcode, LDA_1, STA_1, ADD_1, JNC_1, JMP_1, SUB_1, SHL_1, SHR_1, MUL_1, PRG_1, JSR_1, JFA_1, LDV_1); -- List of states in the CPU FSM
@@ -52,13 +52,12 @@ architecture fsm of cpu is
     signal counter : std_logic_vector( 7 downto 0) := "00000000" ; -- Counter
     signal carry_flag: std_logic := '0';
     
-    signal reset_mult, clk_mult: std_logic := '0';
+    signal reset_mult: std_logic := '0';
     signal multiplicand, multiplier_b, product: integer;
         
 begin -- fsm
     mult4:entity work.multiplier(mixed)
     port map(clk=>clk, reset=>reset_mult, multiplicand=>multiplicand, multiplier=>multiplier_b,product=>product);
---    mult4: multiplier port map(clk=>clk, reset=>reset_mult, multiplicand=>multiplicand, multiplier=>multiplier_b,product=>product);
 
     -- Accumulator and program counter value outputs
     accu_out <= accu;
@@ -116,9 +115,6 @@ begin -- fsm
                 addr <= pc + one;
                 state := load_opcode;
             when STA_1 => -- Store accumulator to memory address
-                wr_en <= '1';
-                dw <= accu;
-                addr <= dr;
                 if counter = "00000001" then
                     wr_en <= '0';
                     counter <= "00000000";
@@ -126,6 +122,9 @@ begin -- fsm
                     addr <= pc + one;
                     state := load_opcode;
                 else
+                    wr_en <= '1';
+                    dw <= accu;
+                    addr <= dr;
                     counter <= counter + one;
                 end if;
             when ADD_1 => -- Add contents at addr to accumulator
@@ -160,7 +159,7 @@ begin -- fsm
                 pc <= dr;
                 addr <= dr;
                 state := load_opcode;
-            when SUB_1 => -- Subtracts contents at addr to accumulator
+            when SUB_1 => -- Subtracts contents at addr from accumulator
                 wr_en <= '0';
                 if counter = "00001000" then
                     accu_carry <= ('0'&accu) - ('0'&dr);
@@ -189,7 +188,6 @@ begin -- fsm
                 state := load_opcode;
             when MUL_1 => -- Multiplies contents at addr with accumulator
                 wr_en <= '0';
-                
                 if counter = "00001000" then
                     --accu <= accu(3 downto 0) * dr(3 downto 0);
                     accu <= conv_std_logic_vector(product, 8);
@@ -199,16 +197,17 @@ begin -- fsm
                     addr <= pc + one;
                     state := load_opcode;
                 elsif counter = "00000000" then
+                    addr <= dr;   
+                    counter <= counter + one; 
+                elsif counter = "00000001" then
                     reset_mult <= '1';
                     multiplicand <= conv_integer(accu);        
                     multiplier_b <= conv_integer(dr);                     
                     counter <= counter + one;   
-                elsif counter = "00000001" then
+                elsif counter = "00000010" then
                     reset_mult <= '0';
-                    clk_mult <= not clk_mult;
                     counter <= counter + one; 
                 else
-                    clk_mult <= not clk_mult;
                     counter <= counter + one;
                 end if;
             when PRG_1 => -- Load accumulator with pseudo-random
@@ -289,8 +288,9 @@ architecture sim of procram is
 --    x"07",x"00",x"09",x"02",x"0d",x"1F",x"0c",x"00");
 --    (x"01",x"07",x"03",x"0a",x"02",x"10",x"04",x"02",
 --    x"05",x"00",x"09",x"00",x"00",x"00",x"00",x"00");
-(x"01",x"0A",x"09",x"0A",x"02",x"10",x"09",x"09",
- x"01",x"25",x"09",x"30",x"02",x"10",x"09",x"09"); 
+(x"01",x"05",x"09",x"0F",x"01",x"0A",x"09",x"0F",
+ x"00",x"00",x"00",x"00",x"00",x"00",x"00",x"0C");
+
 begin
     process(clk, WR_EN, RESET, A)
         variable address : integer := 0;
