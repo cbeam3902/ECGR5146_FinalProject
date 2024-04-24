@@ -212,8 +212,8 @@ begin -- fsm
                 end if;
             when PRG_1 => -- Load accumulator with pseudo-random
                 wr_en <= '0';
-                seed1 := 0;
-                seed2 := 1;
+                seed1 := 1;--CONV_INTEGER(pc);
+                seed2 := 1;--CONV_INTEGER(accu);
                 if counter = "00000100" then
                     counter <= "00000000";
                     uniform(seed1, seed2, rnd_num);
@@ -284,12 +284,18 @@ architecture sim of procram is
     type mem_array is array (0 to 15) of std_logic_vector(7 downto 0);
     signal ram_data: mem_array := (others => x"00");
     signal rom_data: mem_array :=
---    (x"0b",x"04",x"05",x"00",x"0a",x"00",x"06",x"01",
---    x"07",x"00",x"09",x"02",x"0d",x"1F",x"0c",x"00");
+-- JSR, JMP, LVD, JFA
+--    (x"0b",x"04",x"00",x"00",x"0d",x"02",x"0C",x"00",
+--    x"00",x"00",x"00",x"00",x"00",x"00",x"00",x"00"); 
+-- JMP, PRG, SUB, SHL, SHR
+    (x"0a",x"03",x"06",x"01",x"07",x"00",x"08",x"00",
+     x"05",x"00",x"00",x"00",x"00",x"00",x"00",x"00");   
+-- LDA, ADD, STA, JNC, JMP    
 --    (x"01",x"07",x"03",x"0a",x"02",x"10",x"04",x"02",
 --    x"05",x"00",x"09",x"00",x"00",x"00",x"00",x"00");
-(x"01",x"05",x"09",x"0F",x"01",x"0A",x"09",x"0F",
- x"00",x"00",x"00",x"00",x"00",x"00",x"00",x"0C");
+-- LDA, MULT
+-- (x"01",x"05",x"09",x"0F",x"01",x"0A",x"09",x"0F",
+--  x"00",x"00",x"00",x"00",x"00",x"00",x"00",x"0C");
 
 begin
     process(clk, WR_EN, RESET, A)
